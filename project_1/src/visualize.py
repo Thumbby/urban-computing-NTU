@@ -1,15 +1,13 @@
+import os.path
+
 import matplotlib
-from matplotlib import pyplot as plt
+from matplotlib import pyplot as plt, ticker
 
 # make figure show in Pycharm
 matplotlib.use('TkAgg')
 
 
-def save(plt_pic, filename):
-    plt_pic.savefig(filename)
-
-
-def visualize_trajectory(trajectory, floor_plan_file, width, height, title=None, model=None,
+def visualize_trajectory(trajectory, floor_plan_file, width, height, save_path, save_name, title=None, model=None,
                          show=False):
     # add trajectory
     size_list = [6] * trajectory.shape[0]
@@ -28,8 +26,6 @@ def visualize_trajectory(trajectory, floor_plan_file, width, height, title=None,
 
     # configure
     fig, ax = plt.subplots()
-    fig.set_figheight(200 + 900 * height / width)
-    fig.set_figwidth(900)
     font_dict = {'fontsize': 14,
                  'fontweight': 8.2,
                  'verticalalignment': 'baseline',
@@ -39,6 +35,10 @@ def visualize_trajectory(trajectory, floor_plan_file, width, height, title=None,
     # add floor plan
     img = plt.imread(floor_plan_file)
     ax.imshow(img, extent=(0, width, 0, height))
+    ax.xaxis.set_major_locator(ticker.MultipleLocator(20))
+    ax.xaxis.set_minor_locator(ticker.MultipleLocator(5))
+    ax.yaxis.set_major_locator(ticker.MultipleLocator(20))
+    ax.yaxis.set_minor_locator(ticker.MultipleLocator(5))
 
     # hover event:show the trajectory
 
@@ -63,15 +63,16 @@ def visualize_trajectory(trajectory, floor_plan_file, width, height, title=None,
             plt.annotate(text_list[i], xy=(trajectory[:, 0][i], trajectory[:, 1][i]), xytext=(
                 trajectory[:, 0][i] + 0.1, trajectory[:, 1][i] + 0.1 + 0.2 * (position_count[str(trajectory[i])])))
 
+    plt.savefig(os.path.join(save_path, save_name), format='PNG', dpi=160)
+
     if show:
         plt.show()
 
 
-def visualize_heatmap(position, value, floor_plan_file, width, height, colorbar_title, title=None, show=False):
+def visualize_heatmap(position, value, floor_plan_file, width, height, colorbar_title, save_path, save_name, title=None,
+                      show=False):
     # configure
     fig, ax = plt.subplots()
-    fig.set_figheight(200 + 900 * height / width)
-    fig.set_figwidth(900)
     font_dict = {'fontsize': 14,
                  'fontweight': 8.2,
                  'verticalalignment': 'baseline',
@@ -82,13 +83,21 @@ def visualize_heatmap(position, value, floor_plan_file, width, height, colorbar_
     img = plt.imread(floor_plan_file)
     ax.imshow(img, extent=(0, width, 0, height))
 
+    ax.xaxis.set_major_locator(ticker.MultipleLocator(20))
+    ax.xaxis.set_minor_locator(ticker.MultipleLocator(5))
+    ax.yaxis.set_major_locator(ticker.MultipleLocator(20))
+    ax.yaxis.set_minor_locator(ticker.MultipleLocator(5))
+
     plt.scatter(
         x=position[:, 0],
         y=position[:, 1],
         c=value,
-        cmap='gist_rainbow_r'
+        cmap='gist_rainbow_r',
+        s=10
     )
     plt.colorbar(label=colorbar_title, orientation='horizontal')
+
+    plt.savefig(os.path.join(save_path, save_name), format='PNG', dpi=160)
 
     if show:
         plt.show()

@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from compute_tools import *
+from src.sample.compute import *
 from pathlib import Path
 
 
@@ -59,11 +59,9 @@ def assmble_path_data(data_lines):
 
         if data_line[1] == 'TYPE_WIFI':
             ts = data_line[0]
-            ssid = data_line[2]
             bssid = data_line[3]
             rssi = data_line[4]
-            last_ts = data_line[6]
-            wifi_data = [ts, ssid, bssid, rssi, last_ts]
+            wifi_data = [ts, bssid, rssi]
             type_wif.append(wifi_data)
             continue
 
@@ -90,9 +88,6 @@ def assmble_path_data(data_lines):
     type_gyr = np.array(type_gyr)
     type_rot = np.array(type_rot)
     type_mag = np.array(type_mag)
-    type_mag_uncal = np.array(type_mag_uncal)
-    type_gyr_uncal = np.array(type_gyr_uncal)
-    type_acc_uncal = np.array(type_acc_uncal)
     type_wif = np.array(type_wif)
     type_bea = np.array(type_bea)
     type_way = np.array(type_way)
@@ -107,65 +102,69 @@ def read_path_data(filename):
     return assmble_path_data(lines)
 
 
-def calibrate_magnetic_wifi_ibeacon_to_position(path_data_files):
-    mwi_datas = {}
+def combine_data_with_position(path_data_files, augmentation=True):
+    combined_data = {}
     for path_filename in list(Path(path_data_files).resolve().glob("*.txt")):
         print('Processing file:', path_filename)
-        path_datas = read_path_data(path_filename)
-        acce_datas = path_datas.acce
-        magn_datas = path_datas.magn
-        ahrs_datas = path_datas.ahrs
-        wifi_datas = path_datas.wifi
-        ibeacon_datas = path_datas.ibeacon
-        posi_datas = path_datas.waypoint
+        path_data = read_path_data(path_filename)
+        acce_data = path_data.acce
+        magn_data = path_data.magn
+        ahrs_data = path_data.ahrs
+        wifi_data = path_data.wifi
+        ibeacon_data = path_data.ibeacon
+        waypoint_data = path_data.waypoint
 
-        step_positions = compute_step_positions(acce_datas, ahrs_datas, posi_datas)
+        if augmentation:
+            positions = compute_step_positions(acce_data, ahrs_data, waypoint_data)
+        else:
+            positions = waypoint_data
 
-        if wifi_datas.size != 0:
-            sep_tss = np.unique(wifi_datas[:, 0].astype(float))
-            wifi_datas_list = split_ts_seq(wifi_datas, sep_tss)
-            for wifi_ds in wifi_datas_list:
-                diff = np.abs(step_positions[:, 0] - float(wifi_ds[0, 0]))
+        if wifi_data.size != 0:
+            sep_tss_wifi = np.unique(wifi_data[:, 0].astype(float))
+            wifi_data_list = split_ts_seq(wifi_data, sep_tss_wifi)
+            for wifi in wifi_data_list:
+                diff = np.abs(positions[:, 0] - float(wifi[0, 0]))
                 index = np.argmin(diff)
-                position_key = tuple(step_positions[index, 1:3])
-                if position_key in mwi_datas:
-                    mwi_datas[position_key]['wifi'] = np.append(mwi_datas[position_key]['wifi'], wifi_ds, axis=0)
+                position_key = tuple(positions[index, 1:3])
+                if position_key in combined_data:
+                    combined_data[position_key]['wifi'] = np.append(combined_data[position_key]['wifi'], wifi, axis=0)
                 else:
-                    mwi_datas[position_key] = {
+                    combined_data[position_key] = {
                         'magnetic': np.zeros((0, 4)),
-                        'wifi': wifi_ds,
+                        'wifi': wifi,
                         'ibeacon': np.zeros((0, 3))
                     }
 
-        if ibeacon_datas.size != 0:
-            sep_tss = np.unique(ibeacon_datas[:, 0].astype(float))
-            ibeacon_datas_list = split_ts_seq(ibeacon_datas, sep_tss)
-            for ibeacon_ds in ibeacon_datas_list:
-                diff = np.abs(step_positions[:, 0] - float(ibeacon_ds[0, 0]))
+        if ibeacon_data.size != 0:
+            sep_tss_ibeacon = np.unique(ibeacon_data[:, 0].astype(float))
+            ibeacon_data_list = split_ts_seq(ibeacon_data, sep_tss_ibeacon)
+            for ibeacon in ibeacon_data_list:
+                diff = np.abs(positions[:, 0] - float(ibeacon[0, 0]))
                 index = np.argmin(diff)
-                position_key = tuple(step_positions[index, 1:3])
-                if position_key in mwi_datas:
-                    mwi_datas[position_key]['ibeacon'] = np.append(mwi_datas[position_key]['ibeacon'], ibeacon_ds,
-                                                                    axis=0)
+                position_key = tuple(positions[index, 1:3])
+                if position_key in combined_data:
+                    combined_data[position_key]['ibeacon'] = np.append(combined_data[position_key]['ibeacon'], ibeacon,
+                                                                       axis=0)
                 else:
-                    mwi_datas[position_key] = {
+                    combined_data[position_key] = {
                         'magnetic': np.zeros((0, 4)),
-                        'wifi': np.zeros((0, 5)),
-                        'ibeacon': ibeacon_ds
+                        'wifi': np.zeros((0, 3)),
+                        'ibeacon': ibeacon
                     }
 
-        sep_tss = np.unique(magn_datas[:, 0].astype(float))
-        magn_datas_list = split_ts_seq(magn_datas, sep_tss)
-        for magn_ds in magn_datas_list:
-            diff = np.abs(step_positions[:, 0] - float(magn_ds[0, 0]))
+        sep_tss_magn = np.unique(magn_data[:, 0].astype(float))
+        magnetic_data_list = split_ts_seq(magn_data, sep_tss_magn)
+        for magnetic in magnetic_data_list:
+            diff = np.abs(positions[:, 0] - float(magnetic[0, 0]))
             index = np.argmin(diff)
-            position_key = tuple(step_positions[index, 1:3])
-            if position_key in mwi_datas:
-                mwi_datas[position_key]['magnetic'] = np.append(mwi_datas[position_key]['magnetic'], magn_ds, axis=0)
+            position_key = tuple(positions[index, 1:3])
+            if position_key in combined_data:
+                combined_data[position_key]['magnetic'] = np.append(combined_data[position_key]['magnetic'], magnetic,
+                                                                    axis=0)
             else:
-                mwi_datas[position_key] = {
-                    'magnetic': magn_ds,
-                    'wifi': np.zeros((0, 5)),
+                combined_data[position_key] = {
+                    'magnetic': magnetic,
+                    'wifi': np.zeros((0, 3)),
                     'ibeacon': np.zeros((0, 3))
                 }
-    return mwi_datas
+    return combined_data
