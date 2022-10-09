@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from src.sample.compute import *
+from sample.compute import *
 from pathlib import Path
 
 
